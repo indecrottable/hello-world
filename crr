@@ -1,0 +1,1393 @@
+kkkMain
+
+Option Base 1
+
+Sub DoAll()
+    Clear
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    interpolate
+    Calculate_Survival_Probabilities
+    Calculate_Expected_Loss
+    Calculate_Default_Capîtal_Cost
+    Calculate_CVA_Capîtal_Cost
+    Calculate_Funding
+    Range("Trade_MtM").Value = "Trade MtM: " & Format(Range("Spot_MTM_in_CCY").Value, "#,##0;-#,##0")
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    'MsgBox "Done", vbOKOnly, "Success"
+End Sub
+
+Sub Copy_Results()
+    Range("Area_To_Copy").Copy
+End Sub
+
+Sub Clear()
+    Dim N_row As Long
+    Check_Input_Light
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    Range(Range("Output_Date").Cells(2, 1), Range("Output_Expected_Loss").Cells(N_row + 1, 1)).ClearContents
+    Range(Range("Output_DefK_cost").Cells(2, 1), Range("Output_DefK_cost").Cells(N_row + 1, 1)).ClearContents
+    Range(Range("Output_CvaK_cost").Cells(2, 1), Range("Output_EffEE").Cells(N_row + 1, 1)).ClearContents
+    Range("Output_EffectiveMaturity").ClearContents
+    Range("Trade_MtM").Value = "Trade MtM:  -"
+    'custom DefK profile?
+    If ActiveSheet.Shapes("Check_Box_CustDefK_profile").OLEFormat.Object.Value <> xlOn Then
+        Range(Range("Output_DefK").Cells(2, 1), Range("Output_DefK").Cells(N_row + 1, 1)).ClearContents
+    End If
+    'custom CvaK profile?
+    If ActiveSheet.Shapes("Check_Box_CustCvaK_profile").OLEFormat.Object.Value <> xlOn Then
+        Range(Range("Output_CvaK").Cells(2, 1), Range("Output_CvaK").Cells(N_row + 1, 1)).ClearContents
+    End If
+    Calculate
+End Sub
+
+Sub ClearAll()
+    Dim N_row As Long
+    Check_Input_Light
+    ActiveSheet.Shapes("Check_Box_CustDefK_profile").OLEFormat.Object.Value = xlOff
+    ActiveSheet.Shapes("Check_Box_CustCvaK_profile").OLEFormat.Object.Value = xlOff
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    Range(Range("Output_Date").Cells(2, 1), Range("Output_EffEE").Cells(N_row + 1, 1)).ClearContents
+    Range("Output_EffectiveMaturity").ClearContents
+    Range("Trade_MtM").Value = "Trade MtM:  -"
+    'custom DefK profile?
+    If ActiveSheet.Shapes("Check_Box_CustDefK_profile").OLEFormat.Object.Value <> xlOn Then
+        Range(Range("Output_DefK").Cells(2, 1), Range("Output_DefK").Cells(N_row + 1, 1)).ClearContents
+    End If
+    'custom CvaK profile?
+    If ActiveSheet.Shapes("Check_Box_CustCvaK_profile").OLEFormat.Object.Value <> xlOn Then
+        Range(Range("Output_CvaK").Cells(2, 1), Range("Output_CvaK").Cells(N_row + 1, 1)).ClearContents
+    End If
+    Calculate
+End Sub
+
+Sub Hide_Unhide_Details()
+    Application.ScreenUpdating = False
+    If Range("Calculation_Details_Hide_From").EntireColumn.Hidden Then
+        Range(Range("Calculation_Details_Hide_From"), Range("Calculation_Details_Hide_To")).EntireRow.Hidden = False
+        Range(Range("Calculation_Details_Hide_From"), Range("Calculation_Details_Hide_To")).EntireColumn.Hidden = False
+        Sheets("Spot Capital calculation").Visible = True
+        Sheets("RaceING FX").Visible = True
+        Sheets("Statics").Visible = True
+        Sheets("Main").Activate
+        ActiveWindow.ScrollColumn = 1
+        ActiveWindow.ScrollRow = 1
+    Else
+        Range(Range("Calculation_Details_Hide_From"), Range("Calculation_Details_Hide_To")).EntireRow.Hidden = True
+        Range(Range("Calculation_Details_Hide_From"), Range("Calculation_Details_Hide_To")).EntireColumn.Hidden = True
+        Sheets("Spot Capital calculation").Visible = False
+        Sheets("RaceING FX").Visible = False
+        Sheets("Statics").Visible = False
+        Sheets("Main").Activate
+        ActiveWindow.ScrollColumn = 1
+        ActiveWindow.ScrollRow = 1
+    End If
+    Application.ScreenUpdating = True
+End Sub
+
+Sub Check_Input_Light()
+    If Range("Input_Date").Cells(2, 1).Value = "" Then
+        MsgBox "Please provide EPE/ENE inputs", vbError, "Missing Input"
+        End
+    End If
+    If Range("Input_ZC_Date").Cells(2, 1).Value = "" Then
+        MsgBox "Please provide ZC inputs", vbError, "Missing Input"
+        End
+    End If
+End Sub
+
+Sub Check_Input_Full()
+    If Range("Input_Date").Cells(2, 1).Value = "" Then
+        MsgBox "Please provide EPE/ENE inputs", vbError, "Missing Input"
+        End
+    End If
+    If Range("Input_ZC_Date").Cells(2, 1).Value = "" Then
+        MsgBox "Please provide ZC inputs", vbError, "Missing Input"
+        End
+    End If
+    If Range("Input_ZC_FTP_Date").Cells(2, 1).Value = "" Then
+        MsgBox "Please provide FTP inputs", vbError, "Missing Input"
+        End
+    End If
+    If Range("Product_Type").Value = "" Then
+        MsgBox "Please provide Product Type", vbError, "Missing Input"
+        End
+    End If
+    If Range("Maturity").Value = "" Then
+        MsgBox "Please provide Trade Maturity", vbError, "Missing Input"
+        End
+    End If
+    If Range("Notional_in_CCY").Value = "" Then
+        MsgBox "Please provide Notional", vbError, "Missing Input"
+        End
+    End If
+    If Range("Spot_MTM_in_CCY").Value = "" Then
+        MsgBox "Please provide MtM", vbError, "Missing Input"
+        End
+    End If
+    If Range("Rating_CP").Value = "" Or Range("Rating_ING").Value = "" Then
+        MsgBox "Please provide Rating", vbError, "Missing Input"
+        End
+    End If
+    If Range("LGD").Value = "" Then
+        MsgBox "Please provide LGD", vbError, "Missing Input"
+        End
+    End If
+    If Range("Exposure_Class").Value = "" Then
+        MsgBox "Please provide Exposure_Class info", vbError, "Missing Input"
+        End
+    End If
+    If Range("Effective_Regulated").Value = "" Then
+        MsgBox "Please provide Effective_Regulated info", vbError, "Missing Input"
+        End
+    End If
+    If Range("Total_Ann_Sales").Value = "" And Range("Exposure_Class").Value = "CORP SME" Then
+        MsgBox "Please provide Total_Ann_Sales info", vbError, "Missing Input"
+        End
+    End If
+    If Range("RoE").Value = "" Then
+        MsgBox "Please provide RoE", vbError, "Missing Input"
+        End
+    End If
+    If Range("CvaCapDiversificationRatio").Value = "" Then
+        MsgBox "Please provide CvaCap Diversification Ratio", vbError, "Missing Input"
+        End
+    End If
+End Sub
+
+
+kkkMisc
+
+Function max(a, b)
+    If a > b Then
+        max = a
+    Else
+        max = b
+    End If
+End Function
+
+Function min(a, b)
+    min = -max(-a, -b)
+End Function
+
+Function IsInArray(stringToBeFound As Variant, arr As Variant) As Boolean
+    Dim i
+    For i = LBound(arr) To UBound(arr)
+        If arr(i, 1) = stringToBeFound Then
+            IsInArray = True
+            Exit Function
+        End If
+    Next i
+    IsInArray = False
+
+End Function
+
+Public Sub QuickSortArray(ByRef SortArray As Variant, Optional lngMin As Long = -1, Optional lngMax As Long = -1, Optional lngColumn As Long = 0)
+    'On Error Resume Next
+
+    'Sort a 2-Dimensional array
+
+    ' SampleUsage: sort arrData by the contents of column 3
+    '
+    '   QuickSortArray arrData, , , 3
+
+    '
+    'Posted by Jim Rech 10/20/98 Excel.Programming
+
+    'Modifications, Nigel Heffernan:
+
+    '       ' Escape failed comparison with empty variant
+    '       ' Defensive coding: check inputs
+
+    Dim i As Long
+    Dim j As Long
+    Dim varMid As Variant
+    Dim arrRowTemp As Variant
+    Dim lngColTemp As Long
+
+    If IsEmpty(SortArray) Then
+        Exit Sub
+    End If
+    If InStr(TypeName(SortArray), "()") < 1 Then  'IsArray() is somewhat broken: Look for brackets in the type name
+        Exit Sub
+    End If
+    If lngMin = -1 Then
+        lngMin = LBound(SortArray, 1)
+    End If
+    If lngMax = -1 Then
+        lngMax = UBound(SortArray, 1)
+    End If
+    If lngMin >= lngMax Then    ' no sorting required
+        Exit Sub
+    End If
+
+    i = lngMin
+    j = lngMax
+
+    varMid = Empty
+    varMid = SortArray((lngMin + lngMax) \ 2, lngColumn)
+
+    ' We  send 'Empty' and invalid data items to the end of the list:
+    If IsObject(varMid) Then  ' note that we don't check isObject(SortArray(n)) - varMid *might* pick up a valid default member or property
+        i = lngMax
+        j = lngMin
+    ElseIf IsEmpty(varMid) Then
+        i = lngMax
+        j = lngMin
+    ElseIf IsNull(varMid) Then
+        i = lngMax
+        j = lngMin
+    ElseIf varMid = "" Then
+        i = lngMax
+        j = lngMin
+    ElseIf VarType(varMid) = vbError Then
+        i = lngMax
+        j = lngMin
+    ElseIf VarType(varMid) > 17 Then
+        i = lngMax
+        j = lngMin
+    End If
+
+    While i <= j
+        While SortArray(i, lngColumn) < varMid And i < lngMax
+            i = i + 1
+        Wend
+        While varMid < SortArray(j, lngColumn) And j > lngMin
+            j = j - 1
+        Wend
+
+        If i <= j Then
+            ' Swap the rows
+            ReDim arrRowTemp(LBound(SortArray, 2) To UBound(SortArray, 2))
+            For lngColTemp = LBound(SortArray, 2) To UBound(SortArray, 2)
+                arrRowTemp(lngColTemp) = SortArray(i, lngColTemp)
+                SortArray(i, lngColTemp) = SortArray(j, lngColTemp)
+                SortArray(j, lngColTemp) = arrRowTemp(lngColTemp)
+            Next lngColTemp
+            Erase arrRowTemp
+
+            i = i + 1
+            j = j - 1
+        End If
+    Wend
+
+    If (lngMin < j) Then Call QuickSortArray(SortArray, lngMin, j, lngColumn)
+    If (i < lngMax) Then Call QuickSortArray(SortArray, i, lngMax, lngColumn)
+
+End Sub
+
+Sub Apply_x_40pc_on_EPE()
+
+    Dim N_row_Exposure_Profile As Long
+    Dim n As Long
+    
+    Dim inputExposure_Profile As Variant
+    Dim outputExposure_Profile() As Variant
+    
+    Cells(1, 1).Select
+    Application.ScreenUpdating = False
+    
+    'initialisation
+    N_row_Exposure_Profile = Range("Input_EPE").Cells(1, 1).End(xlDown).Row - Range("Input_EPE").Cells(2, 1).Row + 1
+    
+    inputExposure_Profile = Range(Range("Input_EPE").Cells(2, 1), Range("Input_EPE").Cells(N_row_Exposure_Profile + 1, 1)).Value
+    outputExposure_Profile = Range(Range("Input_EPE").Cells(2, 1), Range("Input_EPE").Cells(N_row_Exposure_Profile + 1, 1)).Value
+                
+    ReDim outputExposure_Profile(1 To N_row_Exposure_Profile, 1 To 1)
+    
+    'Complete missing points with ZC GRID
+    For n = 1 To N_row_Exposure_Profile
+        outputExposure_Profile(n, 1) = 0.4 * inputExposure_Profile(n, 1)
+    Next n
+
+    'Print
+    Range(Range("Input_EPE").Cells(2, 1), Range("Input_EPE").Cells(N_row_Exposure_Profile + 1, 1)).Value = outputExposure_Profile
+    
+    Cells(1, 1).Select
+    Application.ScreenUpdating = True
+    
+End Sub
+
+kkkProfileMktData
+Sub interpolate()
+
+    import_FX
+    Build_Profile_Grid
+    Discount_Factor "Input_ZC_Date", "Input_ZC_Value", "Output_ZC", "Output_DF"
+    Discount_Factor "Input_ZC_FTP_Date", "Input_ZC_FTP_Value", "Output_FTP_ZC", "Output_DF_FTP"
+    Discount_Profile
+End Sub
+
+
+Sub Build_Profile_Grid()
+
+    Dim N_row_Exposure_Profile As Long
+    Dim N_row_ZC_Profile As Long
+    Dim N_row_FTP_Profile As Long
+    Dim N_row_Output_Profile As Long
+    Dim n As Long
+    
+    Dim asofdate As Date
+    Dim maturityDate As Date
+    
+    Dim inputExposure_Profile_Date As Variant
+    Dim inputZC_Profile_Date As Variant
+    Dim inputFTP_Profile_Date As Variant
+    
+    Dim outputProfile_Date() As Variant
+    
+    Check_Input_Light
+    
+    'initialisation
+    N_row_Exposure_Profile = Range("Input_Date").Cells(1, 1).End(xlDown).Row - Range("Input_Date").Cells(2, 1).Row + 1
+    N_row_ZC_Profile = Range("Input_ZC_Date").Cells(2, 1).End(xlDown).Row - Range("Input_ZC_Date").Cells(2, 1).Row + 1
+    N_row_FTP_Profile = Range("Input_ZC_FTP_Date").Cells(2, 1).End(xlDown).Row - Range("Input_ZC_FTP_Date").Cells(2, 1).Row + 1
+    
+    inputExposure_Profile_Date = Range(Range("Input_Date").Cells(2, 1), Range("Input_Date").Cells(N_row_Exposure_Profile + 1, 1)).Value
+    inputZC_Profile_Date = Range(Range("Input_ZC_Date").Cells(2, 1), Range("Input_ZC_Date").Cells(N_row_ZC_Profile + 1, 1)).Value
+    inputFTP_Profile_Date = Range(Range("Input_ZC_FTP_Date").Cells(2, 1), Range("Input_ZC_FTP_Date").Cells(N_row_FTP_Profile + 1, 1)).Value
+                
+    asofdate = Range("AsOfDate").Value
+    maturityDate = Range("Maturity").Value
+    maturityDateYears = (maturityDate - asofdate) / 365.25
+    
+    'EPE_profile GRID
+    ReDim outputProfile_Date(1 To N_row_Exposure_Profile + N_row_ZC_Profile + N_row_FTP_Profile, 1 To 1)
+    For n = 1 To N_row_Exposure_Profile
+        outputProfile_Date(n, 1) = inputExposure_Profile_Date(n, 1)
+    Next n
+    N_row_Output_Profile = n - 1
+    
+    'Complete missing points with ZC GRID
+    For n = 1 To N_row_ZC_Profile
+        tempDate = asofdate + CInt(inputZC_Profile_Date(n, 1) * 365.25)
+        If tempDate < maturityDate Then
+            If Not IsInArray(tempDate, outputProfile_Date) Then
+                N_row_Output_Profile = N_row_Output_Profile + 1
+                outputProfile_Date(N_row_Output_Profile, 1) = tempDate
+            End If
+        End If
+    Next n
+    
+    'Complete missing points with FTP GRID
+    For n = 1 To N_row_FTP_Profile
+        tempDate = asofdate + CInt(inputFTP_Profile_Date(n, 1) * 365.25)
+        If tempDate < maturityDate Then
+            If Not IsInArray(tempDate, outputProfile_Date) Then
+                N_row_Output_Profile = N_row_Output_Profile + 1
+                outputProfile_Date(N_row_Output_Profile, 1) = tempDate
+            End If
+        End If
+    Next n
+        
+    'Complete missing points with Maturity Date
+    tempDate = Range("Maturity").Value
+    If Not IsInArray(tempDate, outputProfile_Date) Then
+        N_row_Output_Profile = N_row_Output_Profile + 1
+        outputProfile_Date(N_row_Output_Profile, 1) = tempDate
+    End If
+    
+    'Complete missing points with Early Term Date
+    tempDate = Range("EarlyTerminationDate").Value
+    If Not IsInArray(tempDate, outputProfile_Date) Then
+        N_row_Output_Profile = N_row_Output_Profile + 1
+        outputProfile_Date(N_row_Output_Profile, 1) = tempDate
+    End If
+    
+    'Print
+    Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row_Output_Profile + 1, 1)).Value = outputProfile_Date
+    
+    'Sort
+    With ActiveWorkbook.Worksheets("Main").Sort
+        .SetRange Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row_Output_Profile + 1, 1))
+        .Apply
+    End With
+End Sub
+
+Sub Discount_Profile()
+
+    Dim N_row As Long
+    Dim n As Long
+    Dim i As Long
+            
+    Dim asofdate As Date
+    Dim fx_CCYEUR As Double
+    
+    Dim outputDFvalue() As Variant
+    Dim outputDate() As Variant
+    Dim outputEPE() As Variant
+    Dim outputENE() As Variant
+    Dim outputDiscountedEPE() As Variant
+    Dim outputDiscountedENE() As Variant
+    
+    Check_Input_Light
+    
+    'initialisation
+    N_row = Range("Input_Date").Cells(2, 1).End(xlDown).Row - Range("Input_Date").Cells(2, 1).Row + 1
+    inputEPE = Range(Range("Input_EPE").Cells(2, 1), Range("Input_EPE").Cells(N_row + 1, 1)).Value
+    inputENE = Range(Range("Input_ENE").Cells(2, 1), Range("Input_ENE").Cells(N_row + 1, 1)).Value
+    inputDate = Range(Range("Input_Date").Cells(2, 1), Range("Input_Date").Cells(N_row + 1, 1)).Value
+    
+    asofdate = Range("AsOfDate").Value
+    If Range("CCY_InputProfile").Value = "EUR" Then
+        fx_CCYEUR = 1
+    Else
+        fx_CCYEUR = Range("FX_CCYEUR").Value
+    End If
+    
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    
+    outputMaturity = Range(Range("Output_Maturity").Cells(2, 1), Range("Output_Maturity").Cells(N_row + 1, 1)).Value
+    outputDFvalue = Range(Range("Output_DF").Cells(2, 1), Range("Output_DF").Cells(N_row + 1, 1)).Value
+    outputDFvalue = Range(Range("Output_DF").Cells(2, 1), Range("Output_DF").Cells(N_row + 1, 1)).Value
+    
+    ReDim outputEPE(1 To N_row, 1 To 1)
+    ReDim outputENE(1 To N_row, 1 To 1)
+    ReDim outputDiscountedEPE(1 To N_row, 1 To 1)
+    ReDim outputDiscountedENE(1 To N_row, 1 To 1)
+    
+    
+    'interpolation
+    i = 1
+    temp_prevDate = (inputDate(i, 1) - asofdate) / 365.25
+    temp_nextDate = (inputDate(i, 1) - asofdate) / 365.25
+    temp_prevEPE = inputEPE(i, 1)
+    temp_nextEPE = inputEPE(i, 1)
+    temp_prevENE = inputENE(i, 1)
+    temp_nextENE = inputENE(i, 1)
+                
+    For n = 1 To N_row
+        If outputMaturity(n, 1) <= temp_prevDate Then
+            outputEPE(n, 1) = temp_prevEPE
+            outputENE(n, 1) = temp_prevENE
+        Else
+            If outputMaturity(n, 1) <= temp_nextDate Then
+                outputEPE(n, 1) = temp_prevEPE + (outputMaturity(n, 1) - temp_prevDate) * (temp_nextEPE - temp_prevEPE) / (temp_nextDate - temp_prevDate)
+                outputENE(n, 1) = temp_prevENE + (outputMaturity(n, 1) - temp_prevDate) * (temp_nextENE - temp_prevENE) / (temp_nextDate - temp_prevDate)
+            Else
+                i = i + 1
+                If i = N_input + 1 Then
+                    outputEPE(n, 1) = temp_nextEPE
+                    outputENE(n, 1) = temp_nextENE
+                    i = i - 1
+                Else
+                    temp_prevEPE = temp_nextEPE
+                    temp_prevENE = temp_nextENE
+                    temp_prevDate = temp_nextDate
+                    temp_nextEPE = inputEPE(i, 1)
+                    temp_nextENE = inputENE(i, 1)
+                    temp_nextDate = (inputDate(i, 1) - asofdate) / 365.25
+                    If outputMaturity(n, 1) < temp_nextDate Or n = 1 Then
+                        outputEPE(n, 1) = temp_prevEPE + (outputMaturity(n, 1) - temp_prevDate) * (temp_nextEPE - temp_prevEPE) / (temp_nextDate - temp_prevDate)
+                        outputENE(n, 1) = temp_prevENE + (outputMaturity(n, 1) - temp_prevDate) * (temp_nextENE - temp_prevENE) / (temp_nextDate - temp_prevDate)
+                    Else
+                        n = n - 1
+                    End If
+                End If
+            End If
+        End If
+    Next n
+        
+    For n = 1 To N_row
+        outputEPE(n, 1) = outputEPE(n, 1) * fx_CCYEUR
+        outputENE(n, 1) = -outputENE(n, 1) * fx_CCYEUR
+        outputDiscountedEPE(n, 1) = outputDFvalue(n, 1) * outputEPE(n, 1)
+        outputDiscountedENE(n, 1) = outputDFvalue(n, 1) * outputENE(n, 1)
+    Next n
+    
+    'Print
+    Range(Range("Input_EPE_NonDisc").Cells(2, 1), Range("Input_EPE_NonDisc").Cells(N_row + 1, 1)).Value = outputEPE
+    Range(Range("Input_ENE_NonDisc").Cells(2, 1), Range("Input_ENE_NonDisc").Cells(N_row + 1, 1)).Value = outputENE
+    Range(Range("Input_EPE_Disc").Cells(2, 1), Range("Input_EPE_Disc").Cells(N_row + 1, 1)).Value = outputDiscountedEPE
+    Range(Range("Input_ENE_Disc").Cells(2, 1), Range("Input_ENE_Disc").Cells(N_row + 1, 1)).Value = outputDiscountedENE
+       
+End Sub
+
+Sub Discount_Factor(Input_Range_Date As String, Input_Range_Value As String, Output_Range_Value As String, Output_Range_Value_DF As String)
+    Dim N_row As Long
+    Dim N_input As Long
+    Dim n As Long
+    Dim i As Long
+    
+    Dim inputDate As Variant
+    Dim inputZCvalue As Variant
+    
+    Dim temp_prevDate As Double
+    Dim temp_nextDate As Double
+    Dim temp_prev As Double
+    Dim temp_next As Double
+        
+    Dim asofdate As Date
+    
+    Dim outputDate() As Variant
+    Dim outputMaturity() As Variant
+    Dim outputZCvalue() As Variant
+    Dim outputDFvalue() As Variant
+    
+    Check_Input_Light
+    
+    'initialisation
+    N_row = Range(Input_Range_Date).Cells(2, 1).End(xlDown).Row - Range(Input_Range_Date).Cells(2, 1).Row + 1
+    N_input = N_row
+    inputDate = Range(Range(Input_Range_Date).Cells(2, 1), Range(Input_Range_Date).Cells(N_row + 1, 1)).Value
+    inputZCvalue = Range(Range(Input_Range_Value).Cells(2, 1), Range(Input_Range_Value).Cells(N_row + 1, 1)).Value
+    
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    
+    asofdate = Range("AsOfDate").Value
+    outputDate = Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value
+    ReDim outputMaturity(1 To N_row, 1 To 1)
+    ReDim outputZCvalue(1 To N_row, 1 To 1)
+    ReDim outputDFvalue(1 To N_row, 1 To 1)
+    
+    'interpolation
+    i = 1
+    temp_prevDate = inputDate(i, 1)
+    temp_nextDate = inputDate(i, 1)
+    temp_prev = inputZCvalue(i, 1)
+    temp_next = inputZCvalue(i, 1)
+    
+    For n = 1 To N_row
+        outputMaturity(n, 1) = (outputDate(n, 1) - asofdate) / 365.25
+        If outputMaturity(n, 1) <= temp_prevDate Then
+            outputZCvalue(n, 1) = temp_prev
+        Else
+            If outputMaturity(n, 1) <= temp_nextDate Then
+                outputZCvalue(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+            Else
+                i = i + 1
+                If i = N_input + 1 Then
+                    outputZCvalue(n, 1) = temp_next
+                    i = i - 1
+                Else
+                    temp_prev = temp_next
+                    temp_prevDate = temp_nextDate
+                    temp_next = inputZCvalue(i, 1)
+                    temp_nextDate = inputDate(i, 1)
+                    If outputMaturity(n, 1) < temp_nextDate Or n = 1 Then
+                        outputZCvalue(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+                    Else
+                        n = n - 1
+                    End If
+                End If
+            End If
+        End If
+        outputDFvalue(n, 1) = Exp(-outputMaturity(n, 1) * outputZCvalue(n, 1))
+    Next n
+    
+    'Print
+    Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value = outputDate
+    Range(Range("Output_Maturity").Cells(2, 1), Range("Output_Maturity").Cells(N_row + 1, 1)).Value = outputMaturity
+    Range(Range(Output_Range_Value).Cells(2, 1), Range(Output_Range_Value).Cells(N_row + 1, 1)).Value = outputZCvalue
+    Range(Range(Output_Range_Value_DF).Cells(2, 1), Range(Output_Range_Value_DF).Cells(N_row + 1, 1)).Value = outputDFvalue
+       
+End Sub
+
+'NOT USED
+Sub FTP_Spread_interpolate()
+    Dim N_row As Long
+    Dim n As Long
+    Dim i As Long
+    
+    Dim inputDate As Variant
+    Dim inputZCvalue As Variant
+    
+    Dim temp_prevDate As Double
+    Dim temp_nextDate As Double
+    Dim temp_prev As Double
+    Dim temp_next As Double
+        
+    Dim asofdate As Date
+    
+    Dim outputDate() As Variant
+    Dim outputMaturity() As Variant
+    Dim outputDFvalue() As Variant
+    
+    Check_Input_Light
+    
+    'initialisation
+    inputFTPtenor = Range("Input_FTP_tenor").Value
+    inputFTPspread = Range("Input_FTP_spread").Value
+    
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    
+    asofdate = Range("AsOfDate").Value
+    outputDate = Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value
+    ReDim outputMaturity(1 To N_row, 1 To 1)
+    ReDim outputFTPspread(1 To N_row, 1 To 1)
+    
+    Dim lengthFTPspread As Integer
+    lengthFTPspread = UBound(inputFTPtenor) - LBound(inputFTPtenor) + 1
+    
+    'interpolation
+    i = 1
+    temp_prevDate = inputFTPtenor(1, i) / 12
+    temp_nextDate = inputFTPtenor(1, i) / 12
+    temp_prev = inputFTPspread(1, i)
+    temp_next = inputFTPspread(1, i)
+    
+    For n = 1 To N_row
+        outputMaturity(n, 1) = (outputDate(n, 1) - asofdate) / 365.25
+        If outputMaturity(n, 1) <= temp_prevDate Then
+            outputFTPspread(n, 1) = temp_prev
+        Else
+            If outputMaturity(n, 1) <= temp_nextDate Then
+                outputFTPspread(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+            Else
+                i = i + 1
+                If i > 16 Then
+                    outputFTPspread(n, 1) = temp_next
+                    i = i - 1
+                Else
+                    temp_prev = temp_next
+                    temp_prevDate = temp_nextDate
+                    temp_next = inputFTPspread(1, i)
+                    temp_nextDate = inputFTPtenor(1, i) / 12
+                    If outputMaturity(n, 1) < temp_nextDate Then
+                        outputFTPspread(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+                    Else
+                        n = n - 1
+                    End If
+                End If
+            End If
+        End If
+    Next n
+    
+    'Print
+    Range(Range("Output_FTP_spread").Cells(2, 1), Range("Output_FTP_spread").Cells(N_row + 1, 1)).Value = outputFTPspread
+       
+End Sub
+
+
+kkkSP
+
+Sub Calculate_Survival_Probabilities()
+    
+    'INTERPOLATION ON THE HAZARD RATE
+    
+    Dim outputDate() As Variant
+    Dim outputSP_CP() As Variant
+    Dim outputSP_ING() As Variant
+    Dim outputDP_CP() As Variant
+    Dim outputDP_ING() As Variant
+    Dim outputHazardRate_CP() As Variant
+    Dim outputHazardRate_ING() As Variant
+    
+    Dim temp_prevDate As Double
+    Dim temp_nextDate As Double
+    Dim temp_prev As Double
+    Dim temp_next As Double
+        
+    Dim asofdate As Date
+    
+    Dim N_row As Long
+    Dim n As Long
+    
+    Check_Input_Full
+    
+    
+    'initialisation
+    asofdate = Range("AsOfDate").Value
+    rating_CP = Range("Rating_CP").Value
+    rating_ING = Range("Rating_ING").Value
+    pd1y_CP = Application.WorksheetFunction.VLookup(rating_CP, Range("PD1Y_Table").Value, 2, 0)
+    pd1y_ING = Application.WorksheetFunction.VLookup(rating_ING, Range("PD1Y_Table").Value, 2, 0)
+    rating_CP = Round(Right(rating_CP, Len(rating_CP) - 2), 0)
+    rating_ING = Round(Right(rating_ING, Len(rating_ING) - 2), 0)
+    
+    Dim hazard_term_structure_CP As Scripting.Dictionary
+    Set hazard_term_structure_CP = New Scripting.Dictionary
+    Dim hazard_term_structure_ING As Scripting.Dictionary
+    Set hazard_term_structure_ING = New Scripting.Dictionary
+    N_row = Range("Hazard_Rate_Rating").Cells(2, 1).End(xlDown).Row - Range("Hazard_Rate_Rating").Cells(2, 1).Row + 1
+    
+    'retrieve the hazard rate term structure for CP an dING
+    '/!\ input and output Hazxard rate is an integrated hazard rate (not instantaneous) /!\
+    inputHazardRate_Rating = Range(Range("Hazard_Rate_Rating").Cells(2, 1), Range("Hazard_Rate_Rating").Cells(N_row + 1, 1)).Value
+    inputHazardRate_Date = Range(Range("Hazard_Rate_Date").Cells(2, 1), Range("Hazard_Rate_Date").Cells(N_row + 1, 1)).Value
+    inputHazardRate_Value = Range(Range("Hazard_Rate_Value").Cells(2, 1), Range("Hazard_Rate_Value").Cells(N_row + 1, 1)).Value
+    For n = 1 To N_row
+        If inputHazardRate_Rating(n, 1) = rating_CP Then hazard_term_structure_CP.Add inputHazardRate_Date(n, 1), inputHazardRate_Value(n, 1)
+        If inputHazardRate_Rating(n, 1) = rating_ING Then hazard_term_structure_ING.Add inputHazardRate_Date(n, 1), inputHazardRate_Value(n, 1)
+    Next n
+        
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    outputDate = Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value
+    ReDim outputMaturity(1 To N_row, 1 To 1)
+    ReDim outputHazardRate_CP(1 To N_row, 1 To 1)
+    ReDim outputHazardRate_ING(1 To N_row, 1 To 1)
+    ReDim outputSP_CP(1 To N_row, 1 To 1)
+    ReDim outputSP_ING(1 To N_row, 1 To 1)
+    ReDim outputDP_CP(1 To N_row, 1 To 1)
+    ReDim outputDP_ING(1 To N_row, 1 To 1)
+    
+      
+    'CP : interpolation of hazard rate
+    i = 0
+    temp_prevDate = 0
+    temp_nextDate = hazard_term_structure_CP.Keys(i)
+    temp_prev = 0
+    temp_next = hazard_term_structure_CP.Items(i)
+    temp_hazard_rate = 0
+    temp_hazard_rate = 0
+    For n = 1 To N_row
+        outputMaturity(n, 1) = (outputDate(n, 1) - asofdate) / 365.25
+        If outputMaturity(n, 1) <= temp_prevDate Then
+            outputHazardRate_CP(n, 1) = temp_prev
+        Else
+            If outputMaturity(n, 1) <= temp_nextDate Then
+                outputHazardRate_CP(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+            Else
+                i = i + 1
+                If i = hazard_term_structure_CP.Count Then
+                    outputHazardRate_CP(n, 1) = temp_next
+                    i = i - 1
+                Else
+                    temp_prev = temp_next
+                    temp_prevDate = temp_nextDate
+                    temp_next = hazard_term_structure_CP.Items(i)
+                    temp_nextDate = hazard_term_structure_CP.Keys(i)
+                    If outputMaturity(n, 1) < temp_nextDate Then
+                        outputHazardRate_CP(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+                    Else
+                        n = n - 1
+                    End If
+                End If
+            End If
+        End If
+    Next n
+    
+    'CP : scale Hazard rates and calculate Survival Proba
+    histo_pd1y_hazard_rate = hazard_term_structure_CP.Items(0) '1y integrated hazard rate
+    If rating_CP >= 20 Then
+        vortex_pd1y_hazard_rate = ""
+    Else
+        vortex_pd1y_hazard_rate = -Log(1 - pd1y_CP) '1y integrated hazard rate
+    End If
+    For n = 1 To N_row
+        If rating_CP >= 20 Then
+            outputHazardRate_CP(n, 1) = "-"
+            If outputMaturity(n, 1) < 1 Then
+                outputSP_CP(n, 1) = 1 - outputMaturity(n, 1)
+            Else
+                outputSP_CP(n, 1) = 0
+            End If
+        Else
+            outputHazardRate_CP(n, 1) = vortex_pd1y_hazard_rate / histo_pd1y_hazard_rate * outputHazardRate_CP(n, 1)
+            If n = 1 Then
+                outputSP_CP(n, 1) = Exp(-outputHazardRate_CP(n, 1))
+            Else
+                outputSP_CP(n, 1) = Exp(-outputHazardRate_CP(n, 1))
+            End If
+        End If
+        outputDP_CP(n, 1) = 1 - outputSP_CP(n, 1)
+    Next n
+    
+    
+            
+    'ING : interpolation of hazard rate
+    i = 0
+    temp_prevDate = 0
+    temp_nextDate = hazard_term_structure_ING.Keys(i)
+    temp_prev = 0
+    temp_next = hazard_term_structure_ING.Items(i)
+    temp_hazard_rate = 0
+    temp_hazard_rate = 0
+    For n = 1 To N_row
+        outputMaturity(n, 1) = (outputDate(n, 1) - asofdate) / 365.25
+        If outputMaturity(n, 1) <= temp_prevDate Then
+            outputHazardRate_ING(n, 1) = temp_prev
+        Else
+            If outputMaturity(n, 1) <= temp_nextDate Then
+                outputHazardRate_ING(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+            Else
+                i = i + 1
+                If i = hazard_term_structure_ING.Count Then
+                    outputHazardRate_ING(n, 1) = temp_next
+                    i = i - 1
+                Else
+                    temp_prev = temp_next
+                    temp_prevDate = temp_nextDate
+                    temp_next = hazard_term_structure_ING.Items(i)
+                    temp_nextDate = hazard_term_structure_ING.Keys(i)
+                    If outputMaturity(n, 1) < temp_nextDate Then
+                        outputHazardRate_ING(n, 1) = temp_prev + (outputMaturity(n, 1) - temp_prevDate) * (temp_next - temp_prev) / (temp_nextDate - temp_prevDate)
+                    Else
+                        n = n - 1
+                    End If
+                End If
+            End If
+        End If
+    Next n
+    
+    
+    'ING : scale Hazard rates and calculate Survival Proba
+    histo_pd1y_hazard_rate = hazard_term_structure_ING.Items(0) '1y integrated hazard rate
+    If rating_ING >= 20 Then
+        vortex_pd1y_hazard_rate = ""
+    Else
+        vortex_pd1y_hazard_rate = -Log(1 - pd1y_ING) '1y integrated hazard rate
+    End If
+    For n = 1 To N_row
+        If rating_ING >= 20 Then
+            outputHazardRate_ING(n, 1) = "-"
+            If outputMaturity(n, 1) < 1 Then
+                outputSP_ING(n, 1) = 1 - outputMaturity(n, 1)
+            Else
+                outputSP_ING(n, 1) = 0
+            End If
+        Else
+            outputHazardRate_ING(n, 1) = vortex_pd1y_hazard_rate / histo_pd1y_hazard_rate * outputHazardRate_ING(n, 1)
+            If n = 1 Then
+                outputSP_ING(n, 1) = Exp(-outputHazardRate_ING(n, 1))
+            Else
+                outputSP_ING(n, 1) = Exp(-outputHazardRate_ING(n, 1))
+            End If
+        End If
+        outputDP_ING(n, 1) = 1 - outputSP_ING(n, 1)
+    Next n
+    
+        
+    'Print
+    Range(Range("Output_SP_CP").Cells(2, 1), Range("Output_SP_CP").Cells(N_row + 1, 1)).Value = outputSP_CP
+    Range(Range("Output_SP_ING").Cells(2, 1), Range("Output_SP_ING").Cells(N_row + 1, 1)).Value = outputSP_ING
+    Range(Range("Output_DP_CP").Cells(2, 1), Range("Output_DP_CP").Cells(N_row + 1, 1)).Value = outputDP_CP
+    Range(Range("Output_DP_ING").Cells(2, 1), Range("Output_DP_ING").Cells(N_row + 1, 1)).Value = outputDP_ING
+    Range(Range("Output_HazardRate_CP").Cells(2, 1), Range("Output_HazardRate_CP").Cells(N_row + 1, 1)).Value = outputHazardRate_CP
+    Range(Range("Output_HazardRate_ING").Cells(2, 1), Range("Output_HazardRate_ING").Cells(N_row + 1, 1)).Value = outputHazardRate_ING
+    Calculate
+    
+    
+End Sub
+
+
+kkkFXImport
+Sub import_FX()
+    
+    If Range("CCY").Value = "EUR" Then
+        Range("FX_CCYEUR").Value = 1
+        Exit Sub
+    End If
+        
+    Dim i As Long
+    Dim sBox As String
+    Dim sDate As String
+    Dim wb_Temp_FX_Book As Workbook
+    Dim wb_MainWorkbook As Workbook
+    
+            
+    asofdate = Range("AsOfDate").Value
+    sDate = Format(WorksheetFunction.WorkDay(asofdate, -1), "yyyymmdd")
+    
+    If Range("RaceING_FX").Cells(1, 1).Offset(0, -1).Value = sDate Then
+        Range("FX_CCYEUR").Value = Application.WorksheetFunction.VLookup(Range("CCY").Value, Range("RaceING_FX").Value, 2, 0)
+        Exit Sub
+    End If
+    
+    Set wb_MainWorkbook = ActiveWorkbook
+    
+    On Error Resume Next
+    Set wb_Temp_FX_Book = Workbooks.Open("http://www.gmdb.intranet/data/algo/FX" & sDate & ".01.csv")
+    On Error GoTo 0
+    
+    If wb_Temp_FX_Book Is Nothing Then
+        sBox = InputBox("Last Closing BusinessDate (DD/MM/YYYY) ?", "RaceING EOD Date")
+        On Error Resume Next
+        If sBox = "" Then End
+        If IsError(CDate(sBox)) Then
+            MsgBox "Invalid date format (DD/MM/YYYY).", vbCritical, "Error : Wrong Format"
+            Range("FX_RaceING").Value = ""
+            Application.ScreenUpdating = True
+            End
+        End If
+        On Error GoTo 0
+    
+        sDate = Format(CDate(sBox), "yyyymmdd")
+        If Range("RaceING_FX").Cells(1, 1).Offset(0, -1).Value = sDate Then Exit Sub
+    
+        On Error Resume Next
+        Set wb_Temp_FX_Book = Workbooks.Open("http://www.gmdb.intranet/data/algo/FX" & sDate & ".01.csv")
+        On Error GoTo 0
+    
+        If wb_Temp_FX_Book Is Nothing Then
+            MsgBox "No FX data found for input BusinessDate(=" & sBox & ")." & Chr(13) & "Maybe it's non BusinessDate or Future BusinessDate.", vbCritical, "Error : No FX data found for BusinessDate(=" & sBox & ")"
+            Range("FX_RaceING").Value = ""
+            Application.ScreenUpdating = True
+            End
+        End If
+    End If
+    
+    Sheets(1).Cells().Copy
+    wb_MainWorkbook.Sheets("RaceING FX").Activate
+    Sheets("RaceING FX").Cells().PasteSpecial
+    Range("RaceING_FX").Cells(1, 1).Value = "EUR"
+    Range("RaceING_FX").Cells(1, 2).Value = 1
+    Range("RaceING_FX").Cells(1, 1).Offset(0, -2).Value = "AsOf"
+    Range("RaceING_FX").Cells(1, 1).Offset(0, -1).Value = sDate
+    
+    
+    Application.CutCopyMode = False
+    wb_Temp_FX_Book.Close False
+    
+    Sheets("Main").Activate
+    Range("FX_CCYEUR").Value = Application.WorksheetFunction.VLookup(Range("CCY").Value, Range("RaceING_FX").Value, 2, 0)
+            
+End Sub
+
+
+
+kkkFunding
+Sub Calculate_Funding()
+
+    Dim outputDate() As Variant
+    Dim outputExpectedLoss() As Variant
+    Dim outputSP_CP() As Variant
+    Dim outputSP_ING() As Variant
+    Dim inputDiscountedEPE() As Variant
+    Dim inputDiscountedENE() As Variant
+    Dim outputFundingCost() As Variant
+    Dim outputFundingBenefit() As Variant
+    Dim outputDF() As Variant
+    Dim outputFTPspread() As Variant
+      
+    Dim asofdate As Date
+        
+    Dim N_row As Long
+    Dim n As Long
+    
+    Check_Input_Full
+    FTP_Spread
+    
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    
+    'initialisation
+    asofdate = Range("AsOfDate").Value
+    inputDiscountedEPE = Range(Range("Input_EPE_Disc").Cells(2, 1), Range("Input_EPE_Disc").Cells(N_row + 1, 1)).Value
+    inputDiscountedENE = Range(Range("Input_ENE_Disc").Cells(2, 1), Range("Input_ENE_Disc").Cells(N_row + 1, 1)).Value
+    outputDate = Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value
+    outputMaturityDate = Range(Range("Output_Maturity").Cells(2, 1), Range("Output_Maturity").Cells(N_row + 1, 1)).Value
+    outputDF = Range(Range("Output_DF").Cells(2, 1), Range("Output_DF").Cells(N_row + 1, 1)).Value
+    outputFTPspread = Range(Range("Output_FTP_spread").Cells(2, 1), Range("Output_FTP_spread").Cells(N_row + 1, 1)).Value
+    
+    ReDim outputFundingCost(1 To N_row, 1 To 1)
+    ReDim outputFundingBenefit(1 To N_row, 1 To 1)
+    
+    outputSP_CP = Range(Range("Output_SP_CP").Cells(2, 1), Range("Output_SP_CP").Cells(N_row + 1, 1)).Value
+    outputSP_ING = Range(Range("Output_SP_ING").Cells(2, 1), Range("Output_SP_ING").Cells(N_row + 1, 1)).Value
+         
+    For n = 1 To N_row
+        If n = 1 Then
+            outputFundingCost(n, 1) = inputDiscountedEPE(n, 1) * outputFTPspread(n, 1) / 10000 * outputMaturityDate(n, 1) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+            outputFundingBenefit(n, 1) = inputDiscountedENE(n, 1) * outputFTPspread(n, 1) / 10000 * outputMaturityDate(n, 1) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+        Else
+            outputFundingCost(n, 1) = inputDiscountedEPE(n, 1) * outputFTPspread(n, 1) / 10000 * (outputMaturityDate(n, 1) - outputMaturityDate(n - 1, 1)) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+            outputFundingBenefit(n, 1) = inputDiscountedENE(n, 1) * outputFTPspread(n, 1) / 10000 * (outputMaturityDate(n, 1) - outputMaturityDate(n - 1, 1)) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+        End If
+    Next n
+    
+    'Print
+    Range(Range("Output_FundingCost").Cells(2, 1), Range("Output_FVA").Cells(N_row + 1, 1)).Value = outputFundingCost
+    Range(Range("Output_FundingBenefit").Cells(2, 1), Range("Output_FVA").Cells(N_row + 1, 1)).Value = outputFundingBenefit
+    Calculate
+    
+    
+End Sub
+
+
+
+Sub FTP_Spread()
+
+    Dim N_row As Long
+    Dim N_input As Long
+    Dim n As Long
+    Dim i As Long
+        
+    Dim temp_prevDate As Double
+    Dim temp_nextDate As Double
+    Dim temp_prev As Double
+    Dim temp_next As Double
+        
+    Dim asofdate As Date
+    
+    Dim outputMaturity() As Variant
+    Dim outputDFvalue() As Variant
+    Dim outputDF_FTPvalue() As Variant
+    Dim outputFTPvalue() As Variant
+    Dim temp_Fwd_FTP As Double
+    Dim temp_Fwd_Eonia As Double
+    Dim temp_Dt As Double
+        
+    Check_Input_Light
+    
+    'initialisation
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    
+    asofdate = Range("AsOfDate").Value
+    outputMaturity = Range(Range("Output_Maturity").Cells(2, 1), Range("Output_Maturity").Cells(N_row + 1, 1)).Value
+    outputDFvalue = Range(Range("Output_DF").Cells(2, 1), Range("Output_DF").Cells(N_row + 1, 1)).Value
+    outputDF_FTPvalue = Range(Range("Output_DF_FTP").Cells(2, 1), Range("Output_DF_FTP").Cells(N_row + 1, 1)).Value
+    ReDim outputFTPvalue(1 To N_row, 1 To 1)
+    
+    
+    For n = 1 To N_row
+    
+        If n < N_row Then
+            temp_Dt = outputMaturity(n + 1, 1) - outputMaturity(n, 1)
+            
+            'XVA desk Classic Formula : Power version
+            'temp_Fwd_Eonia = (outputDFvalue(n, 1) / outputDFvalue(n + 1, 1)) ^ (1 / temp_Dt) - 1
+            'temp_Fwd_FTP = (outputDF_FTPvalue(n, 1) / outputDF_FTPvalue(n + 1, 1)) ^ (1 / temp_Dt) - 1
+            
+            'XVA desk Classic Formula : Exp version
+            'temp_Fwd_Eonia = (1 / temp_Dt) * Log(outputDFvalue(n, 1) / outputDFvalue(n + 1, 1))
+            'temp_Fwd_FTP = (1 / temp_Dt) * Log(outputDF_FTPvalue(n, 1) / outputDF_FTPvalue(n + 1, 1))
+                        
+            'Quants formula
+            temp_Fwd_FTP = (1 / temp_Dt) * (outputDF_FTPvalue(n, 1) / outputDF_FTPvalue(n + 1, 1) - 1)
+            temp_Fwd_Eonia = (1 / temp_Dt) * Log(outputDFvalue(n, 1) / outputDFvalue(n + 1, 1))
+            
+            outputFTPvalue(n, 1) = (temp_Fwd_FTP - temp_Fwd_Eonia) * 10000
+        Else
+            outputFTPvalue(n, 1) = outputFTPvalue(n - 1, 1)
+        End If
+    
+    Next n
+    
+    'Print
+    Range(Range("Output_FTP_spread").Cells(2, 1), Range("Output_FTP_spread").Cells(N_row + 1, 1)).Value = outputFTPvalue
+
+End Sub
+
+
+kkkExpLoss
+
+Sub Calculate_Expected_Loss()
+
+    Dim outputDate() As Variant
+    Dim outputExpectedLoss() As Variant
+    Dim outputSP_CP() As Variant
+    Dim outputSP_ING() As Variant
+    
+    Dim temp_prevDate As Date
+    Dim temp_nextDate As Date
+    Dim temp_prev As Double
+    Dim temp_next As Double
+        
+    Dim asofdate As Date
+    
+    Dim capital_t_0 As Double
+    
+    Dim N_row As Long
+    Dim n As Long
+    
+    Check_Input_Full
+    If Range("Maturity").Value > Range("Input_Date").Cells(2, 1).End(xlDown).Value Then
+        MsgBox "Please check input consistency : EPE/ENE profile and Trade Maturity Input", vbError, "Missing Input"
+        End
+    End If
+    
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    
+    'initialisation
+    asofdate = Range("AsOfDate").Value
+    inputDiscountedEPE = Range(Range("Input_EPE_Disc").Cells(2, 1), Range("Input_EPE_Disc").Cells(N_row + 1, 1)).Value
+    outputDate = Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value
+    outputMaturityDate = Range(Range("Output_Maturity").Cells(2, 1), Range("Output_Maturity").Cells(N_row + 1, 1)).Value
+    outputDF = Range(Range("Output_DF").Cells(2, 1), Range("Output_DF").Cells(N_row + 1, 1)).Value
+    LGD = Range("LGD").Value
+    ReDim outputExpectedLoss(1 To N_row, 1 To 1)
+            
+    outputSP_CP = Range(Range("Output_SP_CP").Cells(2, 1), Range("Output_SP_CP").Cells(N_row + 1, 1)).Value
+    outputSP_ING = Range(Range("Output_SP_ING").Cells(2, 1), Range("Output_SP_ING").Cells(N_row + 1, 1)).Value
+         
+    For n = 1 To N_row
+        If n = 1 Then
+            outputExpectedLoss(n, 1) = -LGD * inputDiscountedEPE(n, 1) * (outputSP_CP(n, 1) - 1) * 1
+        Else
+            outputExpectedLoss(n, 1) = -LGD * inputDiscountedEPE(n, 1) * (outputSP_CP(n, 1) - outputSP_CP(n - 1, 1)) * outputSP_ING(n, 1)
+        End If
+    Next n
+    
+    'Print
+    Range(Range("Output_Expected_Loss").Cells(2, 1), Range("Output_Expected_Loss").Cells(N_row + 1, 1)).Value = outputExpectedLoss
+    Calculate
+    
+    
+End Sub
+
+
+kkkDefCap
+
+Sub Calculate_Default_Capîtal_Cost()
+
+    Dim outputDate() As Variant
+    Dim outputCapital() As Variant
+    Dim outputCapitalCost() As Variant
+    Dim outputSP_CP() As Variant
+    
+    Dim temp_prevDate As Date
+    Dim temp_nextDate As Date
+    Dim temp_prev As Double
+    Dim temp_next As Double
+        
+    Dim asofdate As Date
+    
+    Dim capital_t_0 As Double
+    
+    Dim N_row As Long
+    Dim n As Long
+    
+    Check_Input_Full
+    If Range("Maturity").Value > Range("Input_Date").Cells(2, 1).End(xlDown).Value Then
+        MsgBox "Please check input consistency : EPE/ENE profile and Trade Maturity Input", vbError, "Missing Input"
+        End
+    End If
+    
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+              
+    'initialisation
+    asofdate = Range("AsOfDate").Value
+    inputDiscountedEPE = Range(Range("Input_EPE_Disc").Cells(2, 1), Range("Input_EPE_Disc").Cells(N_row + 1, 1)).Value
+    outputDate = Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value
+    outputMaturityDate = Range(Range("Output_Maturity").Cells(2, 1), Range("Output_Maturity").Cells(N_row + 1, 1)).Value
+    outputDF = Range(Range("Output_DF").Cells(2, 1), Range("Output_DF").Cells(N_row + 1, 1)).Value
+    RoC_Hurdle = Range("RoC_Hurdle").Value
+    ReDim outputEffEE(1 To N_row, 1 To 1)
+    ReDim outputCapital(1 To N_row, 1 To 1)
+    ReDim outputCapitalCost(1 To N_row, 1 To 1)
+    
+    outputSP_CP = Range(Range("Output_SP_CP").Cells(2, 1), Range("Output_SP_CP").Cells(N_row + 1, 1)).Value
+    outputSP_ING = Range(Range("Output_SP_ING").Cells(2, 1), Range("Output_SP_ING").Cells(N_row + 1, 1)).Value
+    
+    'custom profile
+    If ActiveSheet.Shapes("Check_Box_CustDefK_profile").OLEFormat.Object.Value = xlOn Then
+        Is_Customized_Profile = True
+    Else
+        Is_Customized_Profile = False
+    End If
+    
+    If Is_Customized_Profile Then
+        outputCapital = Range(Range("Output_DefK").Cells(2, 1), Range("Output_DefK").Cells(Range("Output_DefK").Cells(2, 1).End(xlDown).Row - Range("Output_DefK").Cells(2, 1).Row + 1 + 1, 1)).Value
+    Else
+        Range(Range("Output_DefK").Cells(2, 1), Range("Output_DefK").Cells(Range("Output_DefK").Cells(2, 1).End(xlDown).Row - Range("Output_DefK").Cells(2, 1).Row + 1 + 1, 1)).ClearContents
+        Range("Output_DefK").Cells(2, 1).FormulaR1C1 = "=IF(Enable_Default_K=" & Chr(34) & "Yes" & Chr(34) & ",DefK_t_0,0)"
+        Calculate
+        If IsError(Range("Output_DefK").Cells(2, 1).Value) Then
+            capital_t_0 = 0
+        Else
+            capital_t_0 = Range("Output_DefK").Cells(2, 1).Value
+        End If
+    End If
+    
+    'interpolation
+    temp_prevDate = Range("Maturity").Value
+    For n = 1 To N_row
+        If temp_prevDate > outputDate(n, 1) Then temp_nextDate = outputDate(n, 1)
+    Next n
+    temp_prevDate = outputDate(1, 1)
+    
+    'Eff EE profile
+    maxMaturityDateOfPortfolio = Range("Maturity").Value
+    tempMaturityPoint = 0
+    For n = 1 To N_row
+        Range(Range("Output_EffEE").Cells(2, 1), Range("Output_EffEE").Cells(N_row + 1, 1)).Value = outputEffEE
+
+        j = n
+        tempMaturityPoint = outputMaturityDate(j, 1)
+        'If n = 8 Then Stop
+        While tempMaturityPoint - outputMaturityDate(n, 1) < 1 And outputDate(j, 1) < maxMaturityDateOfPortfolio
+            If n = 1 Then
+                If j = 1 Then
+                    outputEffEE(n, 1) = inputDiscountedEPE(j, 1)
+                Else
+                    outputEffEE(n, 1) = max(inputDiscountedEPE(j, 1), inputDiscountedEPE(j - 1, 1))
+                End If
+            Else
+                outputEffEE(n, 1) = max(inputDiscountedEPE(j, 1), outputEffEE(n - 1, 1))
+            End If
+            j = j + 1
+            tempMaturityPoint = outputMaturityDate(j, 1)
+        Wend
+        If outputDate(n, 1) > maxMaturityDateOfPortfolio Then
+            outputEffEE(n, 1) = 0
+        End If
+    Next n
+    
+    'Effective Maturity
+    If Not Is_Customized_Profile Then
+        Numerator = 0
+        Denominator = 0
+        'If n = 8 Then Stop
+        If (Range("Maturity").Value - Range("AsOfDate").Value) / 365.25 > 1 Then
+            For n = 2 To N_row
+                tempMaturityPoint = outputMaturityDate(n, 1)
+                If tempMaturityPoint < 1 Then
+                    Numerator = Numerator + outputEffEE(n, 1) * (outputMaturityDate(n, 1) - outputMaturityDate(n - 1, 1))
+                    Denominator = Numerator
+                Else
+                    Numerator = Numerator + inputDiscountedEPE(n, 1) * (outputMaturityDate(n, 1) - outputMaturityDate(n - 1, 1))
+                End If
+            Next n
+        End If
+        If Denominator = 0 Then
+            outputEffMaturityDate = (Range("Maturity").Value - Range("AsOfDate").Value) / 365.25
+        Else
+            outputEffMaturityDate = Numerator / Denominator
+        End If
+        outputEffMaturityDate = Range("AsOfDate").Value + Round(outputEffMaturityDate * 365.25)
+        Range("Output_EffectiveMaturity").Value = outputEffMaturityDate
+    Else
+        Range("Output_EffectiveMaturity").Value = "-"
+    End If
+    
+    
+    'DEBUG : UNCOMMENT 2 lines below and COMMENT outputCapital(n, i) calc in loop below (flagged by DEBUG_COMMENT)
+    'Stop
+    'outputCapital = Range(Range("Output_DefK").Cells(2, 1), Range("Output_DefK").Cells(N_row + 1, 1)).Value
+            
+    creditRisk_horizonDate = min(Range("Maturity").Value, Range("EarlyTerminationDate").Value)
+    
+    For n = 1 To N_row
+        'Capital
+        If Not Is_Customized_Profile Then
+            If outputDate(n, 1) < outputEffMaturityDate Then
+                outputCapital(n, 1) = capital_t_0                                                                              'DEBUG_COMMENT
+                temp_prevDate = outputDate(n, 1)
+            Else
+                
+                If outputDate(n, 1) < temp_nextDate Then
+                    outputCapital(n, 1) = (outputDate(n, 1) - temp_nextDate) * capital_t_0 / (temp_prevDate - temp_nextDate)   'DEBUG_COMMENT
+                Else
+                    outputCapital(n, 1) = 0                                                                                    'DEBUG_COMMENT
+                End If
+            End If
+        End If
+        'Capital cost
+        If n = 1 Then
+            outputCapitalCost(n, 1) = RoC_Hurdle * outputCapital(n, 1) * outputDF(n, 1) * (outputMaturityDate(n, 1)) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+        Else
+            outputCapitalCost(n, 1) = RoC_Hurdle * outputCapital(n, 1) * outputDF(n, 1) * (outputMaturityDate(n, 1) - outputMaturityDate(n - 1, 1)) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+        End If
+        'Zero out Capital beyond creditRisk_horizonDate (for graph display purpose)
+        If outputDate(n, 1) > creditRisk_horizonDate Then outputCapital(n, 1) = 0
+    Next n
+    
+    'Print
+    Range(Range("Output_EffEE").Cells(2, 1), Range("Output_EffEE").Cells(N_row + 1, 1)).Value = outputEffEE
+    Range(Range("Output_DefK").Cells(2, 1), Range("Output_DefK").Cells(N_row + 1, 1)).Value = outputCapital
+    Range(Range("Output_DefK_cost").Cells(2, 1), Range("Output_DefK_cost").Cells(N_row + 1, 1)).Value = outputCapitalCost
+    If Not Is_Customized_Profile Then Range("Output_DefK").Cells(2, 1).FormulaR1C1 = "=IF(Enable_Default_K=" & Chr(34) & "Yes" & Chr(34) & ",DefK_t_0,0)"
+    Calculate
+    
+    
+    
+End Sub
+
+
+kkkCvaCap
+
+Sub Calculate_CVA_Capîtal_Cost()
+
+    Dim outputDate() As Variant
+    Dim outputCapital() As Variant
+    Dim outputCapitalCost() As Variant
+    Dim outputSP_CP() As Variant
+    
+    Dim temp_prevDate As Date
+    Dim temp_nextDate As Date
+    Dim temp_prev As Double
+    Dim temp_next As Double
+        
+    Dim asofdate As Date
+    
+    Dim capital_t_0 As Double
+    
+    Dim N_row As Long
+    Dim n As Long
+    
+    Check_Input_Full
+    If Range("Maturity").Value > Range("Input_Date").Cells(2, 1).End(xlDown).Value Then
+        MsgBox "Please check input consistency : EPE/ENE profile and Trade Maturity Input", vbError, "Missing Input"
+        End
+    End If
+    
+    N_row = Range("Output_Date").Cells(2, 1).End(xlDown).Row - Range("Output_Date").Cells(2, 1).Row + 1
+    
+    
+    'initialisation
+    asofdate = Range("AsOfDate").Value
+    outputDate = Range(Range("Output_Date").Cells(2, 1), Range("Output_Date").Cells(N_row + 1, 1)).Value
+    outputMaturityDate = Range(Range("Output_Maturity").Cells(2, 1), Range("Output_Maturity").Cells(N_row + 1, 1)).Value
+    outputDF = Range(Range("Output_DF").Cells(2, 1), Range("Output_DF").Cells(N_row + 1, 1)).Value
+    RoC_Hurdle = Range("RoC_Hurdle").Value
+    ReDim outputCapital(1 To N_row, 1 To 1)
+    ReDim outputCapitalCost(1 To N_row, 1 To 1)
+    
+    outputSP_CP = Range(Range("Output_SP_CP").Cells(2, 1), Range("Output_SP_CP").Cells(N_row + 1, 1)).Value
+    outputSP_ING = Range(Range("Output_SP_ING").Cells(2, 1), Range("Output_SP_ING").Cells(N_row + 1, 1)).Value
+     
+    'custom profile
+    If ActiveSheet.Shapes("Check_Box_CustCvaK_profile").OLEFormat.Object.Value = xlOn Then
+        Is_Customized_Profile = True
+    Else
+        Is_Customized_Profile = False
+    End If
+    
+    If Is_Customized_Profile Then
+        outputCapital = Range(Range("Output_CvaK").Cells(2, 1), Range("Output_CvaK").Cells(N_row + 1, 1)).Value
+    Else
+        Range(Range("Output_CvaK").Cells(2, 1), Range("Output_CvaK").Cells(Range("Output_CvaK").Cells(2, 1).End(xlDown).Row - Range("Output_CvaK").Cells(2, 1).Row + 1 + 1, 1)).ClearContents
+        If Range("Enable_CVA_K").Value = "Yes" Then
+            Range("Output_CvaK").Cells(2, 1).FormulaR1C1 = "=IF(Enable_CVA_K=" & Chr(34) & "Yes" & Chr(34) & ",CvaK_t_0,0)"
+            Calculate
+            capital_t_0 = Range("Output_CvaK").Cells(2, 1).Value
+        Else
+            capital_t_0 = 0
+        End If
+        
+        If IsError(Range("Output_CvaK").Cells(2, 1).Value) Then
+            capital_t_0 = 0
+        Else
+            capital_t_0 = Range("Output_CvaK").Cells(2, 1).Value
+        End If
+    End If
+    
+    'interpolation
+    temp_prevDate = Range("Maturity").Value
+    For n = 1 To N_row
+        If temp_prevDate > outputDate(n, 1) Then temp_nextDate = outputDate(n, 1)
+    Next n
+    
+    temp_prevDate = outputDate(1, 1)
+    creditRisk_horizonDate = min(Range("Maturity").Value, Range("EarlyTerminationDate").Value)
+        
+    For n = 1 To N_row
+        'Capital
+        If Not Is_Customized_Profile Then
+            If outputDate(n, 1) < temp_nextDate Then
+                outputCapital(n, 1) = (outputDate(n, 1) - temp_nextDate) * capital_t_0 / (temp_prevDate - temp_nextDate)
+            Else
+                outputCapital(n, 1) = 0
+            End If
+        End If
+        'Capital cost
+        If n = 1 Then
+            outputCapitalCost(n, 1) = RoC_Hurdle * outputCapital(n, 1) * outputDF(n, 1) * (outputMaturityDate(n, 1)) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+        Else
+            outputCapitalCost(n, 1) = RoC_Hurdle * outputCapital(n, 1) * outputDF(n, 1) * (outputMaturityDate(n, 1) - outputMaturityDate(n - 1, 1)) * outputSP_CP(n, 1) * outputSP_ING(n, 1)
+        End If
+        'Zero out Capital beyond creditRisk_horizonDate (for graph display purpose)
+        If outputDate(n, 1) > creditRisk_horizonDate Then outputCapital(n, 1) = 0
+    Next n
+    
+    'Print
+    Range(Range("Output_CvaK").Cells(2, 1), Range("Output_CvaK").Cells(N_row + 1, 1)).Value = outputCapital
+    Range(Range("Output_CvaK_cost").Cells(2, 1), Range("Output_CvaK_cost").Cells(N_row + 1, 1)).Value = outputCapitalCost
+    If Not Is_Customized_Profile Then Range("Output_CvaK").Cells(2, 1).FormulaR1C1 = "=IF(Enable_CVA_K=" & Chr(34) & "Yes" & Chr(34) & ",CvaK_t_0,0)"
+    Calculate
+    
+    
+    
+End Sub
+
